@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+{{template "head" .}}
+<style>
+    @media (min-width: 769px) {
+        .ant-layout-content {
+            margin: 24px 16px;
+        }
+    }
+
+    .ant-col-sm-24 {
+        margin-top: 10px;
+    }
+
+    .ant-tabs-bar {
+        margin: 0;
+    }
+
+    .ant-list-item {
+        display: block;
+    }
+
+    .ant-tabs-top-bar {
+        background: white;
+    }
+</style>
+<body>
+<a-layout id="app" v-cloak>
+    {{ template "commonSider" . }}
+    <a-layout id="content-layout">
+        <a-layout-content>
+            <a-spin :spinning="spinning" :delay="500" tip="loading">
+                <a-space direction="vertical">
+                    <a-space direction="horizontal">
+                        <a-button type="primary" :disabled="saveBtnDisable" @click="updateAllSetting">Сохранить конфигурацию</a-button>
+                        <a-button type="danger" :disabled="!saveBtnDisable" @click="restartPanel">Панель перезагрузки</a-button>
+                    </a-space>
+                    <a-tabs default-active-key="1">
+                        <a-tab-pane key="1" tab="Конфигурация панели">
+                            <a-list item-layout="horizontal" style="background: white">
+                                <setting-list-item type="text" title="Панельный монитор IP" desc="Оставьте пустым по умолчанию, чтобы слушать все IP，Перезапустите панель, чтобы изменения вступили в силу." v-model="allSetting.webListen"></setting-list-item>
+                                <setting-list-item type="number" title="Порт прослушивания панели" desc="Перезапустите панель, чтобы изменения вступили в силу." v-model.number="allSetting.webPort"></setting-list-item>
+                                <setting-list-item type="text" title="Путь к файлу открытого ключа сертификата панели" desc="Заполнить один '/' Абсолютный путь в начале, перезапустите панель, чтобы изменения вступили в силу" v-model="allSetting.webCertFile"></setting-list-item>
+                                <setting-list-item type="text" title="Путь к файлу ключа сертификата панели" desc="Заполнить один '/' Абсолютный путь в начале, перезапустите панель, чтобы изменения вступили в силу" v-model="allSetting.webKeyFile"></setting-list-item>
+                                <setting-list-item type="text" title="Корневой путь URL-адреса панели" desc="должен начинаться с '/' начала，по '/' В конце перезапустите панель, чтобы изменения вступили в силу." v-model="allSetting.webBasePath"></setting-list-item>
+                            </a-list>
+                        </a-tab-pane>
+                        <a-tab-pane key="2" tab="Пользовательские настройки">
+                            <a-form style="background: white; padding: 20px">
+                                <a-form-item label="Исходное имя пользователя">
+                                    <a-input v-model="user.oldUsername" style="max-width: 300px"></a-input>
+                                </a-form-item>
+                                <a-form-item label="Старый пароль">
+                                    <a-input type="password" v-model="user.oldPassword"
+                                             style="max-width: 300px"></a-input>
+                                </a-form-item>
+                                <a-form-item label="Новое имя пользователя">
+                                    <a-input v-model="user.newUsername" style="max-width: 300px"></a-input>
+                                </a-form-item>
+                                <a-form-item label="Новый пароль">
+                                    <a-input type="password" v-model="user.newPassword"
+                                             style="max-width: 300px"></a-input>
+                                </a-form-item>
+                                <a-form-item>
+                                    <a-button type="primary" @click="updateUser">修改</a-button>
+                                </a-form-item>
+                            </a-form>
+                        </a-tab-pane>
+                        <a-tab-pane key="3" tab="Связанные настройки с xray">
+                            <a-list item-layout="horizontal" style="background: white">
+                                <setting-list-item type="textarea" title="Шаблон конфигурации xray" desc="Создайте окончательный файл конфигурации xray на основе этого шаблона, перезапустите панель, чтобы изменения вступили в силу." v-model="allSetting.xrayTemplateConfig"></setting-list-item>
+                            </a-list>
+                        </a-tab-pane>
+                        <a-tab-pane key="4" tab="Другие настройки">
+                            <a-list item-layout="horizontal" style="background: white">
+                                <setting-list-item type="text" title="Часовой пояс" desc="Запланированное задание запускается в соответствии со временем в часовом поясе и перезапускает панель, чтобы оно вступило в силу." v-model="allSetting.timeLocation"></setting-list-item>
+                            </a-list>
+                        </a-tab-pane>
+                    </a-tabs>
+                </a-space>
+            </a-spin>
+        </a-layout-content>
+    </a-layout>
+</a-layout>
+{{template "js" .}}
+{{template "component/setting"}}
+<script>
+
+    const app = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            siderDrawer,
+            spinning: false,
+            oldAllSetting: new AllSetting(),
+            allSetting: new AllSetting(),
+            saveBtnDisable: true,
+            user: {},
+        },
+        methods: {
+            loading(spinning = true) {
+                this.spinning = spinning;
+            },
+            async getAllSetting() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/all");
+                this.loading(false);
+                if (msg.success) {
+                    this.oldAllSetting = new AllSetting(msg.obj);
+                    this.allSetting = new AllSetting(msg.obj);
+                    this.saveBtnDisable = true;
+                }
+            },
+            async updateAllSetting() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/update", this.allSetting);
+                this.loading(false);
+                if (msg.success) {
+                    await this.getAllSetting();
+                }
+            },
+            async updateUser() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/updateUser", this.user);
+                this.loading(false);
+                if (msg.success) {
+                    this.user = {};
+                }
+            },
+            async restartPanel() {
+                await new Promise(resolve => {
+                    this.$confirm({
+                        title: 'Панель перезагрузки',
+                        content: 'Вы уверены, что хотите перезапустить панель? Нажмите OK для перезапуска через 3 секунды.Если вы не можете получить доступ к панели после перезапуска, перейдите на сервер, чтобы просмотреть информацию журнала панели.',
+                        okText: 'ОК',
+                        cancelText: 'Отмена',
+                        onOk: () => resolve(),
+                    });
+                });
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/restartPanel");
+                this.loading(false);
+                if (msg.success) {
+                    this.loading(true);
+                    await PromiseUtil.sleep(5000);
+                    location.reload();
+                }
+            }
+        },
+        async mounted() {
+            await this.getAllSetting();
+            while (true) {
+                await PromiseUtil.sleep(1000);
+                this.saveBtnDisable = this.oldAllSetting.equals(this.allSetting);
+            }
+        },
+    });
+
+</script>
+</body>
+</html>
